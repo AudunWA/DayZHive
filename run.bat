@@ -1,3 +1,3 @@
 @ECHO OFF
-index.js
+node index.js
 pause

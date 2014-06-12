@@ -1,27 +1,27 @@
 var mysql = require('mysql');
 var express = require('express');
-var getRawBody = require('raw-body');
 var bodyParser = require('body-parser');
 var ipfilter = require('ipfilter');
 var app = express();
 
+var connection = mysql.createConnection({
+	host: 'localhost',
+	user: 'root',
+	password: '',
+	database: 'hive'
+});
+
+// Init middleware
+connection.connect();
+
+// Allowed IP's (server IP)
+var ips = ['127.0.0.1'];
+app.use(ipfilter(ips, {mode: 'allow'}));
+app.use(bodyParser());
+
 exports.start = function () {
-	// Init middleware
-	app.use(bodyParser());
-	var connection = mysql.createConnection({
-		host: 'localhost',
-		user: 'root',
-		password: '',
-		database: 'hive'
-	});
-	connection.connect();
-
-	// Allowed IP's (server IP)
-	var ips = ['127.0.0.1'];
-	app.use(ipfilter(ips, {mode: 'allow'}));
-
 	app.listen(80);
-	console.log('Server running at http://127.0.0.1:80/');
+	console.log('Server running on port 80');
 }
 
 app.post('/DayZServlet/lud0/find', function (req, res) {
