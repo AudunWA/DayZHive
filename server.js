@@ -2,6 +2,7 @@ var mysql = require('mysql');
 var express = require('express');
 var bodyParser = require('body-parser');
 var ipfilter = require('ipfilter');
+var moment = require('moment');
 var app = express();
 
 var connection = mysql.createConnection({
@@ -13,6 +14,7 @@ var connection = mysql.createConnection({
 
 // Init middleware
 connection.connect();
+moment().format();
 
 // Allowed IP's (server IP)
 var ips = ['127.0.0.1'];
@@ -26,7 +28,7 @@ exports.start = function () {
 
 app.post('/DayZServlet/lud0/find', function (req, res) {
     console.log('Got find: ' + req.query.uid);
-    //connection.connect();
+
     connection.query('SELECT model,x,y,z,queue FROM player WHERE uid = ?', [req.query.uid], function (err, rows, fields) {
         if (err) throw err;
         if (rows.length == 0) {
@@ -40,15 +42,17 @@ app.post('/DayZServlet/lud0/find', function (req, res) {
 		delete rows[0].y;
 		delete rows[0].z;
 		
-		//console.log('Sent load data: ' + JSON.stringify(rows[0]));
+		// Calculate queue
+		var queueEnd = moment(rows[0].queue);
+		rows[0].queue = -queueEnd.diff(moment(), 'seconds');
+		
         res.send(JSON.stringify(rows[0]));
     });
-    //connection.end();
 });
 
 app.get('/DayZServlet/lud0/load', function (req, res) {
     console.log('Got load: ' + req.query.uid);
-    //connection.connect();
+
     connection.query('SELECT * FROM player WHERE uid = ?', [req.query.uid], function (err, rows, fields) {
         if (err) throw err;
         if (rows.length == 0) {
@@ -72,57 +76,73 @@ app.get('/DayZServlet/lud0/load', function (req, res) {
 		delete rows[0].up_0;
 		delete rows[0].up_1;
 		delete rows[0].up_2;
+		
+		// Calculate queue
+		var queueEnd = moment(rows[0].queue);
+		rows[0].queue = -queueEnd.diff(moment(), 'seconds');
 
 		//console.log('Sent character data: ' + JSON.stringify(rows[0]));
         res.send(JSON.stringify(rows[0]));
     });
-    //connection.end();
 });
 
 app.post('/DayZServlet/lud0/create', function (req, res) {
     console.log('Got create: ' + req.query.uid);
-	//connection.connect();
 	
 	connection.query('INSERT INTO player(uid) VALUES(?)', [req.query.uid], function (err, rows, fields) {
 		if (err) throw err;
-
-		res.send('');
 	});
-    //connection.end();
+	res.send('');
 });
 
 app.post('/DayZServlet/lud0/save', function (req, res) {
     console.log('Got save: ' + req.query.uid);
-	//connection.connect();
+
 	connection.query('UPDATE player SET model = ?, alive = ?, items = ?, state = ?, x = ?, y = ?, z = ?, dir_x = ?, dir_y = ?, dir_z = ?, up_0 = ?, up_1 = ?, up_2 = ? WHERE uid = ?',
 	[req.body.model, req.body.alive, JSON.stringify(req.body.items), JSON.stringify(req.body.state), req.body.pos[0], req.body.pos[1], req.body.pos[2], req.body.dir[0], req.body.dir[1], req.body.dir[2], req.body.up[0], req.body.up[1], req.body.up[2], req.query.uid], function (err, rows, fields) {
 		if (err) throw err;
-
-		res.send('');
 	});
-    //connection.end();
+    res.send('');
 });
 
 app.post('/DayZServlet/lud0/queue', function (req, res) {
     console.log('Got queue: ' + req.query.uid + ' (' + req.body.queue + 's)');
-	//connection.connect();
-	connection.query('UPDATE player SET queue = ? WHERE uid = ?', [-req.body.queue, req.query.uid], function (err, rows, fields) {
-		if (err) throw err;
-
-		res.send('');
+	
+	connection.query('SELECT queue FROM player WHERE uid = ?', [req.query.uid], function (err, rows, fields) {
+        if (err) throw err;
+		
+		var query;
+		var queueEnd = moment(rows[0].queue);
+		if (queueEnd.diff(moment(), 'seconds') > 0) {
+			// Add to existing queue
+			query = 'UPDATE player SET queue = DATE_ADD(queue,INTERVAL ' + mysql.escape(JSON.stringify(req.body.queue)) + ' SECOND) WHERE uid = ?';
+		}
+		else {
+			// Create new queue from now
+			query = 'UPDATE player SET queue = DATE_ADD(CURRENT_TIMESTAMP,INTERVAL ' + mysql.escape(JSON.stringify(req.body.queue)) + ' SECOND) WHERE uid = ?';
+		}
+		connection.query(query, [req.query.uid], function (err, rows, fields) {
+			if (err) throw err;
+		});
 	});
-    //connection.end();
+	res.send('');
 });
 
 app.post('/DayZServlet/lud0/kill', function (req, res) {
     console.log('Got kill: ' + req.query.uid);
-	//connection.connect();
+
 	connection.query('DELETE FROM player WHERE uid = ?', [req.query.uid], function (err, rows, fields) {
 		if (err) throw err;
-
-		res.send('');
 	});
-    //connection.end();
+	res.send('');
+});
+
+app.post('/DayZServlet/world/add', function (req, res) {
+    console.log('Got world add: ' + JSON.stringify(req.body));
+	connection.query('INSERT INTO dropped_items(type,imp,mt) VALUES(?,?,?)', [req.body.type,req.body.imp,JSON.stringify(req.body.mt)], function (err, rows, fields) {
+		if (err) throw err;
+	});
+	res.send('');
 });
 
 app.post(/.*/, function (req, res) {

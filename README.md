@@ -1,7 +1,7 @@
 DayZHive
 ========
 
-Small Node.js script for saving characters on a DayZ Standalone Hive
+Small Node.js script for saving DayZ Standalone data to a MySQL database.
 
 
 Dependencies: 
@@ -9,6 +9,7 @@ Dependencies:
 - express
 - body-parser
 - ipfilter
+- moment
 
 Install these with
 
